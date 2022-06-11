@@ -77,7 +77,7 @@ impl Simulator for BarnesHut {
                     }
 
                     let mut dir = quadrant.average_position() - body.position;
-                    let distance = dir.length().max(10.0);
+                    let distance = dir.length().max(5.0);
                     dir /= distance;
 
                     if cur_side / distance < self.theta || (quadrant.body.is_some() && quadrant.body.as_ref().unwrap().id != i) {

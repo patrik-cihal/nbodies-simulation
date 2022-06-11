@@ -30,12 +30,12 @@ fn random_in_circle(radius: f64) -> DVec2 {
     return DVec2::new(angle.cos()*distance, angle.sin()*distance);
 }
 
-pub fn big_bang(bod_count: i32, radius: f64) -> Vec<Body> {
+pub fn big_bang(bod_count: i32, radius: f64, expansion: f64) -> Vec<Body> {
     let mut bodies = vec![];
 
     for _ in 0..bod_count {
         let position = random_in_circle(radius);
-        let velocity = (position + random_in_circle(radius)*0.5) * (bod_count as f64) / 650.;
+        let velocity = (position + random_in_circle(radius)*0.5)*expansion;
         bodies.push(Body::new(5., position, velocity));
     }
 
