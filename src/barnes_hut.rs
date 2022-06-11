@@ -1,4 +1,3 @@
-use std::cmp::{max, min};
 use nannou::Draw;
 use nannou::prelude::{DVec2, Vec2};
 use crate::{Body, rgb, Simulator};
