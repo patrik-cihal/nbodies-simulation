@@ -1,12 +1,12 @@
 mod universe;
-mod barnes_hut;
+mod quadtree;
 mod naive;
 
 use std::cmp::Ordering;
 
 use nannou::prelude::*;
 use universe::stable_solar_system;
-use crate::barnes_hut::BarnesHut;
+use crate::quadtree::BarnesHut;
 use crate::universe::{Body, big_bang};
 
 trait Simulator {
@@ -32,7 +32,7 @@ fn model(app: &App) -> Model {
     app.new_window().mouse_wheel(mouse_wheel).build().unwrap();
 
     let win = app.main_window().rect();
-    let bodies = big_bang(5000, (win.w()/10.) as f64, 6.);
+    let bodies = big_bang(5000, (win.w()/10.) as f64, 15.);
     let barnes_hut = BarnesHut::new(2.);
     Model {bodies, offset: Vec2::default(), barnes_hut, zoom: 1., }
 }

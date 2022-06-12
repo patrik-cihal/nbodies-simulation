@@ -34,9 +34,10 @@ pub fn big_bang(bod_count: i32, radius: f64, expansion: f64) -> Vec<Body> {
     let mut bodies = vec![];
 
     for _ in 0..bod_count {
+        let mass = random_f64().powf(4.)*100.+10.;
         let position = random_in_circle(radius);
         let velocity = (position + random_in_circle(radius)*0.5)*expansion;
-        bodies.push(Body::new(5., position, velocity));
+        bodies.push(Body::new(mass, position, velocity));
     }
 
     return bodies;
