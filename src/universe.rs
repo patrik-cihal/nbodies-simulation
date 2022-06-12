@@ -2,25 +2,29 @@ use crate::{DVec2, PI_F64, random_f64, rgb};
 
 pub const G: f64 = 667.43;
 
+#[derive(Clone)]
 pub struct Body {
     pub mass: f64,
     pub position: DVec2,
     pub velocity: DVec2,
     pub acceleration: DVec2,
+    pub radius: f64,
     pub color: rgb::Rgb,
 }
 
 impl Body {
     fn new(mass: f64, position: DVec2, velocity: DVec2) -> Self {
-        Self { mass, position, velocity, acceleration: DVec2::default(), color: rgb::Rgb::default() }
+        Self { mass, position, velocity, acceleration: DVec2::default(), color: rgb::Rgb::default(), radius: mass.sqrt() }
     }
-    pub fn apply_force(&mut self, val: DVec2) {
-        self.acceleration += val/self.mass;
-    }
-    pub fn update(&mut self, dt: f64) {
+
+    pub fn update(&mut self, force: DVec2, dt: f64) {
+        self.acceleration = force / self.mass;
         self.velocity += self.acceleration*dt;
         self.position += self.velocity*dt;
-        self.acceleration = DVec2::default();
+    }
+    
+    pub fn collide(&mut self, body: &Body) {
+        
     }
 }
 

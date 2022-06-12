@@ -4,20 +4,23 @@ mod naive;
 
 use std::cmp::Ordering;
 
+use naive::Naive;
 use nannou::prelude::*;
 use universe::stable_solar_system;
 use crate::quadtree::BarnesHut;
 use crate::universe::{Body, big_bang};
 
 trait Simulator {
-    fn simulate(&mut self, bodies: &mut Vec<Body>);
+    fn gravitation(&mut self, bodies: &mut Vec<Body>, dt: f64);
+    fn collisions(&mut self, bodies: &mut Vec<Body>);
+    fn visualize(&self, draw: &Draw, bodies: &Vec<Body>);
 }
 
 struct Model {
     bodies: Vec<Body>,
     offset: Vec2,
     zoom: f32,
-    barnes_hut: BarnesHut,
+    simulator: Box<dyn Simulator>,
 }
 
 fn main() {
@@ -32,19 +35,19 @@ fn model(app: &App) -> Model {
     app.new_window().mouse_wheel(mouse_wheel).build().unwrap();
 
     let win = app.main_window().rect();
-    let bodies = big_bang(5000, (win.w()/10.) as f64, 15.);
-    let barnes_hut = BarnesHut::new(2.);
-    Model {bodies, offset: Vec2::default(), barnes_hut, zoom: 1., }
+    let bodies = big_bang(2000, (win.w()/2.) as f64, 1.);
+    // let barnes_hut = BarnesHut::new(2.);
+    let naive = Naive {};
+    Model {bodies, offset: Vec2::default(), simulator: Box::new(naive), zoom: 1., }
 }
 
 fn update(app: &App, model: &mut Model, _update: Update) {
     let dt = 1./60.;
 
-    model.barnes_hut.simulate(&mut model.bodies);
+    model.simulator.gravitation(&mut model.bodies, dt);
+    model.simulator.collisions(&mut model.bodies);
+
     color_by_acceleration(&mut model.bodies);
-    for body in &mut *model.bodies {
-        body.update(dt);
-    }
 
     let mouse_pos = app.mouse.position();
     model.offset -= mouse_pos/100. * (1./model.zoom);
@@ -61,10 +64,10 @@ fn view(app: &App, model: &Model, frame: Frame) {
 
     draw.background().rgb(0.11, 0.12, 0.13);
 
-    model.barnes_hut.visualize(&draw, &model.bodies);
+    model.simulator.visualize(&draw, &model.bodies);
 
     for body in &model.bodies {
-        draw.ellipse().color(body.color).xy(body.position.as_f32()).radius(body.mass.sqrt() as f32);
+        draw.ellipse().color(body.color).xy(body.position.as_f32()).radius(body.radius as f32);
     }
 
     draw.to_frame(app, &frame).unwrap();

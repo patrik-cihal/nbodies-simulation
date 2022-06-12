@@ -45,14 +45,19 @@ impl BarnesHut {
         let side = (rb.x-lt.x).max(rb.y-lt.y);
         return (center, side);
     }
-    pub fn visualize(&self, draw: &Draw, bodies: &Vec<Body>) {
-        let (center, side) = BarnesHut::compute_area(bodies);
-        self.root.visualize(draw, center.as_f32(), side as f32);
-    }
 }
 
 impl Simulator for BarnesHut {
-    fn simulate(&mut self, bodies: &mut Vec<Body>) {
+    fn visualize(&self, draw: &Draw, bodies: &Vec<Body>) {
+        let (center, side) = BarnesHut::compute_area(bodies);
+        self.root.visualize(draw, center.as_f32(), side as f32);
+    }
+
+    fn collisions(&mut self, bodies: &mut Vec<Body>) {
+        
+    }
+
+    fn gravitation(&mut self, bodies: &mut Vec<Body>, dt: f64) {
         if bodies.len() <= 1 {
             return;
         }
@@ -68,6 +73,7 @@ impl Simulator for BarnesHut {
         for (i, body) in bodies.iter_mut().enumerate() {
             let mut cur_side = side;
             let mut cur_level = vec![&self.root];
+            let mut force = DVec2::default();
 
             while cur_level.len() > 0 {
                 let mut next_level = Vec::new();
@@ -76,13 +82,12 @@ impl Simulator for BarnesHut {
                         continue;
                     }
 
-                    let mut dir = quadrant.average_position() - body.position;
+                    let dir = quadrant.average_position() - body.position;
                     let distance = dir.length().max(5.0);
-                    dir /= distance;
+                    let dir = dir/distance;
 
                     if cur_side / distance < self.theta || (quadrant.body.is_some() && quadrant.body.as_ref().unwrap().id != i) {
-                        let force = G * body.mass * quadrant.mass / (distance*distance);
-                        body.apply_force(force * dir);
+                        force += G * body.mass * quadrant.mass / (distance*distance);
                     }
                     else if quadrant.children.is_some() {
                         next_level.extend(quadrant.children.as_ref().unwrap());
@@ -92,6 +97,8 @@ impl Simulator for BarnesHut {
                 cur_side /= 2.0;
                 cur_level = next_level;
             }
+
+            body.update(force, dt);
         }
     }
 }
