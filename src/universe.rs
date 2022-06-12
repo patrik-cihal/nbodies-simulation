@@ -23,8 +23,19 @@ impl Body {
         self.position += self.velocity*dt;
     }
     
-    pub fn collide(&mut self, body: &Body) {
-        
+    pub fn collide(&mut self, other: &Body) {
+        let dir = (self.position-other.position).normalize();
+
+        let angle = dir.angle_between(self.velocity);
+        let v1 = angle.cos()*self.velocity.length();
+        let m1 = self.mass;
+
+        let angle = dir.angle_between(other.velocity);
+        let v2 = angle.cos()*other.velocity.length();
+        let m2 = other.mass;
+
+        let v = (m2 * (v2 - v1) + m1*v1 + m2*v2)/(m1 + m2);
+        self.velocity += v*dir - v1*dir;
     }
 }
 
