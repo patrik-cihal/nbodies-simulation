@@ -20,16 +20,18 @@ impl BarnBody {
     }
 }
 
-pub struct BarnesHut {
-    theta: f64,
+pub struct QuadTree {
     root: Quadrant,
+    theta: f64,
+    area: (DVec2, f64)
 }
 
-impl BarnesHut {
+impl QuadTree {
     pub fn new(theta: f64) -> Self {
         Self {
+            root: Quadrant::default(),
             theta,
-            root: Quadrant::default()
+            area: (DVec2::default(), 0.)
         }
     }
     pub fn compute_area(bodies: &Vec<Body>) -> (DVec2, f64) {
@@ -45,29 +47,80 @@ impl BarnesHut {
         let side = (rb.x-lt.x).max(rb.y-lt.y);
         return (center, side);
     }
-    pub fn visualize(&self, draw: &Draw, bodies: &Vec<Body>) {
-        let (center, side) = BarnesHut::compute_area(bodies);
-        self.root.visualize(draw, center.as_f32(), side as f32);
+
+    fn traverse<T>(&self, quadrant: &Quadrant, area: (DVec2, f64), callback: &mut T) where T: FnMut(&Quadrant, (DVec2, f64)) -> bool {
+        if callback(quadrant, area) && quadrant.children.is_some() {
+            for i in 0..2 {
+                for j in 0..2 {
+                    let new_side = area.1/2.;
+                    let offset = DVec2::new((i as f64)-0.5, (j as f64)-0.5) * new_side;
+                    self.traverse(&quadrant.children.as_ref().unwrap()[i+j*2], (area.0+offset, new_side), callback);
+                }
+            }
+        }
     }
 }
 
-impl Simulator for BarnesHut {
-    fn simulate(&mut self, bodies: &mut Vec<Body>) {
-        if bodies.len() <= 1 {
-            return;
-        }
+impl Simulator for QuadTree {
+    fn visualize(&self, draw: &Draw, bodies: &Vec<Body>) {
+        let (center, side) = QuadTree::compute_area(bodies);
+        self.root.visualize(draw, center.as_f32(), side as f32);
+    }
 
+    fn update(&mut self, bodies: &Vec<Body>) {
         self.root = Quadrant::default();
-
-        let (center, side) = BarnesHut::compute_area(bodies);
+        self.area = QuadTree::compute_area(bodies);
 
         for (i, body) in bodies.iter().enumerate() {
-            self.root.insert(BarnBody::new(i, body), center, side);
+            self.root.insert(BarnBody::new(i, body), self.area.0, self.area.1);
         }
+    }
+
+    fn collisions(&mut self, bodies: &mut Vec<Body>) {
+        for i in 0..bodies.len() {
+            self.traverse(&self.root, self.area, &mut |quadrant: &Quadrant, (center, side): (DVec2, f64)| -> bool {
+                if  center.x - side/2. < bodies[i].position.x+bodies[i].radius && 
+                    center.x + side/2. > bodies[i].position.x-bodies[i].radius && 
+                    center.y - side/2. < bodies[i].position.y+bodies[i].radius &&
+                    center.y + side/2. > bodies[i].position.y-bodies[i].radius
+                {
+                    if quadrant.body.is_some() {
+                        let j = quadrant.body.as_ref().unwrap().id;
+                        if i==j {
+                            return false;
+                        }
+                        let offset = bodies[i].position-bodies[j].position;
+                        let dist = offset.length();
+                        let dir = offset/dist;
+                        let col_radius = bodies[i].radius+bodies[j].radius;
+
+                        if dist < col_radius {
+                            let col_delta = (col_radius-dist)/(bodies[i].mass+bodies[j].mass);
+                            let body1 = bodies[i].clone();
+                            let body2 = bodies[j].clone();
+
+                            bodies[i].position += dir*col_delta*body2.mass;
+                            bodies[j].position -= dir*col_delta*body1.mass;
+
+                            bodies[i].collide(&body2);
+                            bodies[j].collide(&body1);
+                        }
+                    }
+                    return true;
+                }
+                return false;
+            });
+        }
+    }
+
+    fn gravitation(&mut self, bodies: &mut Vec<Body>, dt: f64) {
+
+        let (_, side) = self.area;
 
         for (i, body) in bodies.iter_mut().enumerate() {
             let mut cur_side = side;
             let mut cur_level = vec![&self.root];
+            let mut force = DVec2::default();
 
             while cur_level.len() > 0 {
                 let mut next_level = Vec::new();
@@ -76,13 +129,12 @@ impl Simulator for BarnesHut {
                         continue;
                     }
 
-                    let mut dir = quadrant.average_position() - body.position;
-                    let distance = dir.length().max(5.0);
-                    dir /= distance;
+                    let offset = quadrant.average_position() - body.position;
+                    let distance = offset.length().max(5.0);
+                    let dir = offset/distance;
 
                     if cur_side / distance < self.theta || (quadrant.body.is_some() && quadrant.body.as_ref().unwrap().id != i) {
-                        let force = G * body.mass * quadrant.mass / (distance*distance);
-                        body.apply_force(force * dir);
+                        force += dir * G * body.mass * quadrant.mass / (distance*distance);
                     }
                     else if quadrant.children.is_some() {
                         next_level.extend(quadrant.children.as_ref().unwrap());
@@ -92,6 +144,8 @@ impl Simulator for BarnesHut {
                 cur_side /= 2.0;
                 cur_level = next_level;
             }
+
+            body.update(force, dt);
         }
     }
 }
