@@ -36,11 +36,13 @@ fn model(app: &App) -> Model {
     app.new_window().mouse_wheel(mouse_wheel).build().unwrap();
 
     let win = app.main_window().rect();
-    let bodies = big_bang(5000, (win.w()/2.) as f64,1.5);
+    let bodies = big_bang(5000, (win.w()/2.) as f64, 1.5);
     Model {bodies, offset: Vec2::default(), simulator: Box::new(QuadTree::new(1.5)), zoom: 1., }
 }
 
 fn update(app: &App, model: &mut Model, _update: Update) {
+    let fps = (app.elapsed_frames() as f32)/app.time;
+
     let dt = 1./60.;
 
     model.simulator.update(&model.bodies);
@@ -60,9 +62,23 @@ fn mouse_wheel(_app: &App, model: &mut Model, scroll: MouseScrollDelta, _phase: 
 }
 
 fn view(app: &App, model: &Model, frame: Frame) {
-    let draw = app.draw().scale(model.zoom).xy(model.offset);
+    let fps = (app.elapsed_frames() as f32)/app.time;
+    let win = app.window_rect();
 
+    let draw = app.draw();
     draw.background().rgb(0.11, 0.12, 0.13);
+
+    let win_p = win.pad(30.0);
+    let r = Rect::from_wh(win_p.wh()).top_left_of(win_p);
+    // draw.text(&fps.to_string()).color(WHITE).font_size(20).left_justify().xy(rect.xy());
+    draw.text(&("FPS: ".to_owned() + &fps.to_string()))
+        .xy(r.xy())
+        .z(10.)
+        .wh(r.wh())
+        .right_justify()
+        .align_text_top()
+        .font_size(17);
+
 
     model.simulator.visualize(&draw, &model.bodies);
 
