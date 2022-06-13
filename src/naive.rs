@@ -41,7 +41,6 @@ impl Simulator for Naive {
             }
         }
     }
-    fn visualize(&self, draw: &nannou::Draw, bodies: &Vec<Body>) {
-        
-    }
+    fn visualize(&self, _draw: &nannou::Draw, _bodies: &Vec<Body>) {}
+    fn update(&mut self, _bodies: &Vec<Body>) {}
 }

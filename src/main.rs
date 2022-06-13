@@ -7,13 +7,14 @@ use std::cmp::Ordering;
 use naive::Naive;
 use nannou::prelude::*;
 use universe::stable_solar_system;
-use crate::quadtree::BarnesHut;
+use crate::quadtree::QuadTree;
 use crate::universe::{Body, big_bang};
 
 trait Simulator {
     fn gravitation(&mut self, bodies: &mut Vec<Body>, dt: f64);
     fn collisions(&mut self, bodies: &mut Vec<Body>);
     fn visualize(&self, draw: &Draw, bodies: &Vec<Body>);
+    fn update(&mut self, bodies: &Vec<Body>);
 }
 
 struct Model {
@@ -35,22 +36,21 @@ fn model(app: &App) -> Model {
     app.new_window().mouse_wheel(mouse_wheel).build().unwrap();
 
     let win = app.main_window().rect();
-    let bodies = big_bang(2000, (win.w()/2.) as f64, 1.);
-    // let barnes_hut = BarnesHut::new(2.);
-    let naive = Naive {};
-    Model {bodies, offset: Vec2::default(), simulator: Box::new(naive), zoom: 1., }
+    let bodies = big_bang(5000, (win.w()/2.) as f64,1.5);
+    Model {bodies, offset: Vec2::default(), simulator: Box::new(QuadTree::new(1.5)), zoom: 1., }
 }
 
 fn update(app: &App, model: &mut Model, _update: Update) {
     let dt = 1./60.;
 
+    model.simulator.update(&model.bodies);
     model.simulator.gravitation(&mut model.bodies, dt);
     model.simulator.collisions(&mut model.bodies);
 
     color_by_acceleration(&mut model.bodies);
 
     let mouse_pos = app.mouse.position();
-    model.offset -= mouse_pos/100. * (1./model.zoom);
+    model.offset -= mouse_pos/50. * (1./model.zoom);
 }
 
 fn mouse_wheel(_app: &App, model: &mut Model, scroll: MouseScrollDelta, _phase: TouchPhase) {
