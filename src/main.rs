@@ -79,6 +79,8 @@ fn view(app: &App, model: &Model, frame: Frame) {
         .align_text_top()
         .font_size(17);
 
+        
+    let draw = draw.scale(model.zoom).xy(model.offset);
 
     model.simulator.visualize(&draw, &model.bodies);
 
