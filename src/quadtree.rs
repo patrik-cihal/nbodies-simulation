@@ -62,9 +62,16 @@ impl QuadTree {
 }
 
 impl Simulator for QuadTree {
-    fn visualize(&self, draw: &Draw, bodies: &Vec<Body>) {
-        let (center, side) = QuadTree::compute_area(bodies);
-        self.root.visualize(draw, center.as_f32(), side as f32);
+    fn visualize(&self, draw: &Draw, _bodies: &Vec<Body>) {
+        let line_color = rgb(0.17, 0.18, 0.19);
+
+        self.traverse(&self.root, self.area, &mut |quadrant: &Quadrant, (center, side): (DVec2, f64)| -> bool {
+            if quadrant.children.is_some() {
+                draw.line().color(line_color).start(DVec2::new(center.x-side/2., center.y).as_f32()).end(DVec2::new(center.x+side/2., center.y).as_f32());
+                draw.line().color(line_color).start(DVec2::new(center.x, center.y-side/2.).as_f32()).end(DVec2::new(center.x, center.y+side/2.).as_f32());
+            }
+            return true;
+        });
     }
 
     fn update(&mut self, bodies: &Vec<Body>) {
@@ -114,36 +121,23 @@ impl Simulator for QuadTree {
     }
 
     fn gravitation(&mut self, bodies: &mut Vec<Body>, dt: f64) {
-
-        let (_, side) = self.area;
-
         for (i, body) in bodies.iter_mut().enumerate() {
-            let mut cur_side = side;
-            let mut cur_level = vec![&self.root];
             let mut force = DVec2::default();
 
-            while cur_level.len() > 0 {
-                let mut next_level = Vec::new();
-                for quadrant in cur_level {
-                    if quadrant.mass < 0.1 {
-                        continue;
-                    }
-
-                    let offset = quadrant.average_position() - body.position;
-                    let distance = offset.length().max(5.0);
-                    let dir = offset/distance;
-
-                    if cur_side / distance < self.theta || (quadrant.body.is_some() && quadrant.body.as_ref().unwrap().id != i) {
-                        force += dir * G * body.mass * quadrant.mass / (distance*distance);
-                    }
-                    else if quadrant.children.is_some() {
-                        next_level.extend(quadrant.children.as_ref().unwrap());
-                    }
+            self.traverse(&self.root, self.area, &mut |quadrant: &Quadrant, (_center, side): (DVec2, f64)| {
+                if quadrant.mass < 0.1 { // checks for empty quadrant
+                    return false;
                 }
 
-                cur_side /= 2.0;
-                cur_level = next_level;
-            }
+                let offset = quadrant.average_position() - body.position;
+                let distance = offset.length().max(3.);
+                let dir = offset/distance;
+                if side / distance < self.theta || (quadrant.body.is_some() && quadrant.body.as_ref().unwrap().id != i) { 
+                    force += dir * G * body.mass * quadrant.mass / (distance*distance);
+                    return false;
+                }
+                return true;
+            });
 
             body.update(force, dt);
         }
@@ -200,21 +194,5 @@ impl Quadrant {
 
     fn average_position(&self) -> DVec2 {
         return self.position / self.mass;
-    }
-
-    fn visualize(&self, draw: &Draw, center: Vec2, side: f32) {
-        let line_color = rgb(0.17, 0.18, 0.19);
-
-        if self.children.is_some() {
-            draw.line().color(line_color).start(Vec2::new(center.x-side/2., center.y)).end(Vec2::new(center.x+side/2., center.y));
-            draw.line().color(line_color).start(Vec2::new(center.x, center.y-side/2.)).end(Vec2::new(center.x, center.y+side/2.));
-            for i in 0..2 {
-                for j in 0..2 {
-                    let new_side = side/2.;
-                    let offset = Vec2::new((i as f32)-0.5, (j as f32)-0.5)*new_side;
-                    self.children.as_ref().unwrap()[i+j*2].visualize(draw, center+offset, new_side);
-                }
-            }
-        }
     }
 }

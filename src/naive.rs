@@ -1,5 +1,5 @@
 use crate::{Body, Simulator, universe::G};
-use nannou::prelude::{pow, DVec2};
+use nannou::prelude::{DVec2};
 
 pub struct Naive {}
 

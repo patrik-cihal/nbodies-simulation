@@ -13,7 +13,7 @@ pub struct Body {
 }
 
 impl Body {
-    fn new(mass: f64, position: DVec2, velocity: DVec2) -> Self {
+    pub fn new(mass: f64, position: DVec2, velocity: DVec2) -> Self {
         Self { mass, position, velocity, acceleration: DVec2::default(), color: rgb::Rgb::default(), radius: mass.sqrt() }
     }
 

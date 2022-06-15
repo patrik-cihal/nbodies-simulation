@@ -22,6 +22,7 @@ struct Model {
     offset: Vec2,
     zoom: f32,
     simulator: Box<dyn Simulator>,
+    mouse_clicked: Vec2,
 }
 
 fn main() {
@@ -33,16 +34,20 @@ fn main() {
 
 
 fn model(app: &App) -> Model {
-    app.new_window().mouse_wheel(mouse_wheel).build().unwrap();
+    app
+        .new_window()
+        .mouse_wheel(mouse_wheel)
+        .mouse_pressed(mouse_pressed)
+        .mouse_released(mouse_released)
+        .build()
+        .unwrap();
 
     let win = app.main_window().rect();
     let bodies = big_bang(5000, (win.w()/2.) as f64, 1.5);
-    Model {bodies, offset: Vec2::default(), simulator: Box::new(QuadTree::new(1.5)), zoom: 1., }
+    Model {bodies, offset: Vec2::default(), simulator: Box::new(QuadTree::new(0.7)), zoom: 1., mouse_clicked: Vec2::default()}
 }
 
 fn update(app: &App, model: &mut Model, _update: Update) {
-    let fps = (app.elapsed_frames() as f32)/app.time;
-
     let dt = 1./60.;
 
     model.simulator.update(&model.bodies);
@@ -53,6 +58,25 @@ fn update(app: &App, model: &mut Model, _update: Update) {
 
     let mouse_pos = app.mouse.position();
     model.offset -= mouse_pos/50. * (1./model.zoom);
+}
+
+fn mouse_pressed(app: &App, model: &mut Model, _btn: MouseButton) {
+    model.mouse_clicked = app.mouse.position();
+}
+
+fn mouse_released(app: &App, model: &mut Model, btn: MouseButton) {
+    match btn {
+        MouseButton::Left => {
+            let offset = app.mouse.position()-model.mouse_clicked;
+            if offset.x.abs()<0.1 && offset.y.abs()<0.1 {
+                return;
+            }
+            let radius = offset.length()/model.zoom;
+            let new_body = Body::new((radius*radius) as f64, (model.mouse_clicked/model.zoom-model.offset).as_f64(), DVec2::default());
+            model.bodies.push(new_body);
+        },
+        _ => println!("Other than left or right mouse button was released.")
+    }
 }
 
 fn mouse_wheel(_app: &App, model: &mut Model, scroll: MouseScrollDelta, _phase: TouchPhase) {
@@ -70,7 +94,6 @@ fn view(app: &App, model: &Model, frame: Frame) {
 
     let win_p = win.pad(30.0);
     let r = Rect::from_wh(win_p.wh()).top_left_of(win_p);
-    // draw.text(&fps.to_string()).color(WHITE).font_size(20).left_justify().xy(rect.xy());
     draw.text(&("FPS: ".to_owned() + &fps.to_string()))
         .xy(r.xy())
         .z(10.)
