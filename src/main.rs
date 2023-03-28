@@ -1,117 +1,117 @@
 mod universe;
 mod quadtree;
 mod naive;
+mod naive_multi_th;
 
 use std::cmp::Ordering;
+use std::time::Instant;
 
+use ellipsoid::prelude::winit::event::{MouseButton, ElementState, MouseScrollDelta};
 use naive::Naive;
-use nannou::prelude::*;
+use naive_multi_th::NaiveMultiTh;
 use universe::stable_solar_system;
 use crate::quadtree::QuadTree;
 use crate::universe::{Body, big_bang};
 
+use ellipsoid::{prelude::*, WindowEvent};
+
 trait Simulator {
     fn gravitation(&mut self, bodies: &mut Vec<Body>, dt: f64);
     fn collisions(&mut self, bodies: &mut Vec<Body>);
-    fn visualize(&self, draw: &Draw, bodies: &Vec<Body>);
+    fn visualize(&self, bodies: &Vec<Body>) -> Vec<Shape>;
     fn update(&mut self, bodies: &Vec<Body>);
 }
 
-struct Model {
+struct MyApp {
     bodies: Vec<Body>,
     offset: Vec2,
     zoom: f32,
     simulator: Box<dyn Simulator>,
-    mouse_clicked: Vec2,
+    graphics: Graphics,
+    mouse_position: Vec2,
+    test_rot: f32,
 }
+
+impl App for MyApp {
+    fn new(graphics: Graphics) -> Self {
+        let bodies = stable_solar_system(10000, 500.);
+        let simulator = Box::new(QuadTree::new(0.6));
+        Self {bodies, offset: Vec2::default(), simulator, zoom: 1., graphics, mouse_position: Default::default(), test_rot: 0.}
+    }
+
+    fn graphics(&self) -> &Graphics {
+        &self.graphics
+    }
+
+    fn graphics_mut(&mut self) -> &mut Graphics {
+        &mut self.graphics
+    }
+
+    fn update(&mut self, dt: f32) {
+        self.simulator.update(&self.bodies);
+        self.simulator.gravitation(&mut self.bodies, dt as f64);
+        self.simulator.collisions(&mut self.bodies);
+
+        color_by_acceleration(&mut self.bodies);
+        self.test_rot += dt;
+    }
+
+    fn input(&mut self, event: &ellipsoid::WindowEvent) -> bool {
+        // check mouse wheel for zoom out and mouse position for translation
+
+        match event {
+            ellipsoid::WindowEvent::MouseWheel { delta, .. } => {
+                match delta {
+                    MouseScrollDelta::LineDelta(_, y) => {
+                        self.zoom *= 1. + y/10.;
+                    }
+                    MouseScrollDelta::PixelDelta(pos) => {
+                        self.zoom *= 1. + pos.y as f32/100.;
+                    }
+                }
+                true
+            }
+            ellipsoid::WindowEvent::MouseInput { state, button, .. } => {
+                if *button == MouseButton::Left {
+                    if *state == ElementState::Released {
+                        self.offset -= (self.mouse_position) / self.zoom;
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            WindowEvent::CursorMoved { device_id, position, modifiers } => {
+                let x = position.x as f32/self.graphics.window().inner_size().width as f32;
+                let y = position.y as f32/self.graphics.window().inner_size().height as f32;
+                self.mouse_position = vec2(x, -y) * 2. - vec2(1., -1.);
+                false
+            }
+            _ => false
+        }
+    }
+
+    fn draw(&mut self) {
+        let instant = Instant::now();
+        let background_color = Color::from_rgb(0.03, 0.03, 0.03);
+
+        self.graphics.add_geometry(Shape::from_square().apply(GTransform::from_inflation(2.).translate(-vec2(0.5, 0.5))).color(background_color).into());
+        let camera_gtransform = GTransform::from_inflation(self.zoom).translate(self.offset);
+        for shape in self.simulator.visualize(&self.bodies) {
+            self.graphics.add_geometry(shape.apply(camera_gtransform).into());
+        }
+        for body in &self.bodies {
+            let body_shape = Shape::from_circle(7).apply(camera_gtransform.translate(body.position.as_vec2()).inflate(body.radius as f32)).color(body.color);
+            self.graphics.add_geometry(body_shape.into());
+        }
+
+        println!("Drawing took {}ms", instant.elapsed().as_millis());
+    }
+}
+
 
 fn main() {
-    nannou::app(model)
-        .update(update)
-        .view(view)
-        .run();
-}
-
-
-fn model(app: &App) -> Model {
-    app
-        .new_window()
-        .mouse_wheel(mouse_wheel)
-        .mouse_pressed(mouse_pressed)
-        .mouse_released(mouse_released)
-        .build()
-        .unwrap();
-
-    let win = app.main_window().rect();
-    let bodies = big_bang(5000, (win.w()/2.) as f64, 1.5);
-    Model {bodies, offset: Vec2::default(), simulator: Box::new(QuadTree::new(0.7)), zoom: 1., mouse_clicked: Vec2::default()}
-}
-
-fn update(app: &App, model: &mut Model, _update: Update) {
-    let dt = 1./60.;
-
-    model.simulator.update(&model.bodies);
-    model.simulator.gravitation(&mut model.bodies, dt);
-    model.simulator.collisions(&mut model.bodies);
-
-    color_by_acceleration(&mut model.bodies);
-
-    let mouse_pos = app.mouse.position();
-    model.offset -= mouse_pos/50. * (1./model.zoom);
-}
-
-fn mouse_pressed(app: &App, model: &mut Model, _btn: MouseButton) {
-    model.mouse_clicked = app.mouse.position();
-}
-
-fn mouse_released(app: &App, model: &mut Model, btn: MouseButton) {
-    match btn {
-        MouseButton::Left => {
-            let offset = app.mouse.position()-model.mouse_clicked;
-            if offset.x.abs()<0.1 && offset.y.abs()<0.1 {
-                return;
-            }
-            let radius = offset.length()/model.zoom;
-            let new_body = Body::new((radius*radius) as f64, (model.mouse_clicked/model.zoom-model.offset).as_f64(), DVec2::default());
-            model.bodies.push(new_body);
-        },
-        _ => println!("Other than left or right mouse button was released.")
-    }
-}
-
-fn mouse_wheel(_app: &App, model: &mut Model, scroll: MouseScrollDelta, _phase: TouchPhase) {
-    if let MouseScrollDelta::LineDelta(_, y_delta) = scroll {
-        model.zoom *= (1.5 as f32).pow(y_delta);
-    }
-}
-
-fn view(app: &App, model: &Model, frame: Frame) {
-    let fps = (app.elapsed_frames() as f32)/app.time;
-    let win = app.window_rect();
-
-    let draw = app.draw();
-    draw.background().rgb(0.11, 0.12, 0.13);
-
-    let win_p = win.pad(30.0);
-    let r = Rect::from_wh(win_p.wh()).top_left_of(win_p);
-    draw.text(&("FPS: ".to_owned() + &fps.to_string()))
-        .xy(r.xy())
-        .z(10.)
-        .wh(r.wh())
-        .right_justify()
-        .align_text_top()
-        .font_size(17);
-
-        
-    let draw = draw.scale(model.zoom).xy(model.offset);
-
-    model.simulator.visualize(&draw, &model.bodies);
-
-    for body in &model.bodies {
-        draw.ellipse().color(body.color).xy(body.position.as_f32()).radius(body.radius as f32);
-    }
-
-    draw.to_frame(app, &frame).unwrap();
+    async_std::task::block_on(ellipsoid::run::<MyApp>());
 }
 
 fn color_by_acceleration(bodies: &mut Vec<Body>) {
@@ -126,6 +126,6 @@ fn color_by_acceleration(bodies: &mut Vec<Body>) {
 
     for body in &mut *bodies {
         let progress = (body.acceleration.length()/max_acceleration) as f32;
-        body.color = rgb(pow(progress, 3)*0.2+0.8, 0.8, 0.8);
+        body.color = Color::from_rgb(progress.powi(3)*0.2+0.8, 0.8, 0.8);
     }
 }

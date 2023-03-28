@@ -1,6 +1,8 @@
-use nannou::Draw;
-use nannou::prelude::{DVec2, Vec2};
-use crate::{Body, rgb, Simulator};
+use std::time::Instant;
+
+use super::*;
+use glam::{DVec2, Vec2};
+use crate::{Body, Simulator};
 use crate::universe::G;
 
 #[derive(Clone)]
@@ -62,16 +64,18 @@ impl QuadTree {
 }
 
 impl Simulator for QuadTree {
-    fn visualize(&self, draw: &Draw, _bodies: &Vec<Body>) {
-        let line_color = rgb(0.17, 0.18, 0.19);
+    fn visualize(&self, _bodies: &Vec<Body>) -> Vec<Shape> {
+        let mut result = vec![];
+        let line_color = Color::from_rgb(0.17, 0.18, 0.19);
 
         self.traverse(&self.root, self.area, &mut |quadrant: &Quadrant, (center, side): (DVec2, f64)| -> bool {
             if quadrant.children.is_some() {
-                draw.line().color(line_color).start(DVec2::new(center.x-side/2., center.y).as_f32()).end(DVec2::new(center.x+side/2., center.y).as_f32());
-                draw.line().color(line_color).start(DVec2::new(center.x, center.y-side/2.).as_f32()).end(DVec2::new(center.x, center.y+side/2.).as_f32());
+                result.push(Shape::from_line_pos(Vec2::new((center.x-side/2.) as f32, center.y as f32), Vec2::new((center.x+side/2.) as f32, center.y as f32), 3.).color(line_color));
+                result.push(Shape::from_line_pos(Vec2::new(center.x as f32, (center.y-side/2.) as f32), Vec2::new(center.x as f32, (center.y+side/2.) as f32), 3.).color(line_color));
             }
             return true;
         });
+        result
     }
 
     fn update(&mut self, bodies: &Vec<Body>) {
@@ -84,6 +88,8 @@ impl Simulator for QuadTree {
     }
 
     fn collisions(&mut self, bodies: &mut Vec<Body>) {
+        let instant = Instant::now();
+
         for i in 0..bodies.len() {
             self.traverse(&self.root, self.area, &mut |quadrant: &Quadrant, (center, side): (DVec2, f64)| -> bool {
                 if  center.x - side/2. < bodies[i].position.x+bodies[i].radius && 
@@ -118,9 +124,12 @@ impl Simulator for QuadTree {
                 return false;
             });
         }
+        println!("Collisions: {}ms", instant.elapsed().as_millis());
     }
 
     fn gravitation(&mut self, bodies: &mut Vec<Body>, dt: f64) {
+        let instant = Instant::now();
+
         for (i, body) in bodies.iter_mut().enumerate() {
             let mut force = DVec2::default();
 
@@ -141,7 +150,9 @@ impl Simulator for QuadTree {
 
             body.update(force, dt);
         }
+        println!("Gravitation: {}ms", instant.elapsed().as_millis());
     }
+
 }
 
 #[derive(Clone)]

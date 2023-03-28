@@ -1,5 +1,6 @@
+use ellipsoid::{Shape, prelude::glam::DVec2};
+
 use crate::{Body, Simulator, universe::G};
-use nannou::prelude::{DVec2};
 
 pub struct Naive {}
 
@@ -41,6 +42,8 @@ impl Simulator for Naive {
             }
         }
     }
-    fn visualize(&self, _draw: &nannou::Draw, _bodies: &Vec<Body>) {}
+    fn visualize(&self, _bodies: &Vec<Body>) -> Vec<Shape> {
+        vec![]
+    }
     fn update(&mut self, _bodies: &Vec<Body>) {}
 }

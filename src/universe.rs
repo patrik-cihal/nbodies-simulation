@@ -1,4 +1,8 @@
-use crate::{DVec2, PI_F64, random_f64, rgb};
+use std::f64::consts::PI;
+
+use ellipsoid::prelude::glam::DVec2;
+
+use super::*;
 
 pub const G: f64 = 667.43;
 
@@ -9,12 +13,12 @@ pub struct Body {
     pub velocity: DVec2,
     pub acceleration: DVec2,
     pub radius: f64,
-    pub color: rgb::Rgb,
+    pub color: Color,
 }
 
 impl Body {
     pub fn new(mass: f64, position: DVec2, velocity: DVec2) -> Self {
-        Self { mass, position, velocity, acceleration: DVec2::default(), color: rgb::Rgb::default(), radius: mass.sqrt() }
+        Self { mass, position, velocity, acceleration: DVec2::default(), color: Color::from_rgb(0., 0., 0.), radius: mass.sqrt() }
     }
 
     pub fn update(&mut self, force: DVec2, dt: f64) {
@@ -40,8 +44,8 @@ impl Body {
 }
 
 fn random_in_circle(radius: f64) -> DVec2 {
-    let angle = 2.0 * PI_F64 * random_f64();
-    let distance = random_f64().sqrt() * radius;
+    let angle = 2.0 * PI * rand::random::<f64>();
+    let distance = rand::random::<f64>().sqrt() * radius;
     return DVec2::new(angle.cos()*distance, angle.sin()*distance);
 }
 
@@ -49,7 +53,7 @@ pub fn big_bang(bod_count: i32, radius: f64, expansion: f64) -> Vec<Body> {
     let mut bodies = vec![];
 
     for _ in 0..bod_count {
-        let mass = random_f64().powf(4.)*100.+10.;
+        let mass = rand::random::<f64>().powf(4.)*100.+10.;
         let position = random_in_circle(radius);
         let velocity = (position + random_in_circle(radius)*0.5)*expansion;
         bodies.push(Body::new(mass, position, velocity));
